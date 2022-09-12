@@ -51,10 +51,12 @@ Shader shaderMulLighting;
 std::shared_ptr<FirstPersonCamera> camera(new FirstPersonCamera());
 
 Sphere skyboxSphere(20, 20);
+Sphere esfera1(5.0f, 5.0f);
 Box boxCesped;
 Box boxWalls;
 Box boxHighway;
 Box boxLandingPad;
+
 // Models complex instances
 Model modelRock;
 Model modelAircraft;
@@ -70,6 +72,7 @@ Model modelLamboFrontLeftWheel;
 Model modelLamboFrontRightWheel;
 Model modelLamboRearLeftWheel;
 Model modelLamboRearRightWheel;
+
 // Dart lego
 Model modelDartLegoBody;
 Model modelDartLegoHead;
@@ -81,7 +84,7 @@ Model modelDartLegoRightHand;
 Model modelDartLegoLeftLeg;
 Model modelDartLegoRightLeg;
 
-GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID; //, textureLandingPadID;
+GLuint textureCespedID, textureWallID, textureWindowID, textureHighwayID, textureLandingPadID;
 GLuint skyboxTextureID;
 
 GLenum types[6] = {
@@ -105,15 +108,24 @@ int lastMousePosY, offsetY = 0;
 
 // Model matrix definitions
 glm::mat4 modelMatrixEclipse = glm::mat4(1.0f);
-glm::mat4 matrixModelRock = glm::mat4(1.0);
+glm::mat4 matrixModelRock = glm::mat4(1.0f);
 glm::mat4 modelMatrixHeli = glm::mat4(1.0f);
-glm::mat4 modelMatrixLambo = glm::mat4(1.0);
-glm::mat4 modelMatrixAircraft = glm::mat4(1.0);
+glm::mat4 modelMatrixLambo = glm::mat4(1.0f);
+glm::mat4 modelMatrixAircraft = glm::mat4(1.0f);
 glm::mat4 modelMatrixDart = glm::mat4(1.0f);
+glm::mat4 modelEsfera = glm::mat4(1.0f);
 
 float rotDartHead = 0.0, rotDartLeftArm = 0.0, rotDartLeftHand = 0.0, rotDartRightArm = 0.0, rotDartRightHand = 0.0, rotDartLeftLeg = 0.0, rotDartRightLeg = 0.0;
 int modelSelected = 0;
+int stateEclipse = 0;
 bool enableCountSelected = true;
+
+//Variables Eclipse
+int state = 0;
+float advanceCount = 0.0;
+float rotCount = 0.0;
+int numberAdvance = 0;
+int maxAdvance = 0.0;
 
 // Variables to animations keyframes
 bool saveFrame = false, availableSave = true;
@@ -135,8 +147,13 @@ float interpolationDart = 0.0;
 int maxNumPasosDart = 200;
 int numPasosDart = 0;
 
+// Constantes Eclipse
+float rotWheelsX = 0.0;
+float rotWheelsY = 0.0;
+
 // Var animate helicopter
 float rotHelHelY = 0.0;
+float rotHelHelYTra = 0.0;
 
 // Var animate lambo dor
 int stateDoor = 0;
@@ -236,6 +253,18 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	modelAircraft.loadModel("../models/Aircraft_obj/E 45 Aircraft_obj.obj");
 	modelAircraft.setShader(&shaderMulLighting);
 
+	// Pista de aterrizaje helicóptero (Práctica01)
+	boxLandingPad.init();
+	boxLandingPad.setShader(&shaderMulLighting);
+
+
+	//Esfera
+	esfera1.init();
+	esfera1.setShader(&shaderMulLighting);
+	esfera1.setPosition(glm::vec3(5.0f, 2.0f, -1.0f));
+	esfera1.setScale(glm::vec3(2.0f, 2.0f, 2.0f));
+
+
 	// Eclipse
 	modelEclipseChasis.loadModel("../models/Eclipse/2003eclipse_chasis.obj");
 	modelEclipseChasis.setShader(&shaderMulLighting);
@@ -243,11 +272,14 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	modelEclipseFrontalWheels.setShader(&shaderMulLighting);
 	modelEclipseRearWheels.loadModel("../models/Eclipse/2003eclipse_rear_wheels.obj");
 	modelEclipseRearWheels.setShader(&shaderMulLighting);
+
 	// Helicopter
 	modelHeliChasis.loadModel("../models/Helicopter/Mi_24_chasis.obj");
 	modelHeliChasis.setShader(&shaderMulLighting);
 	modelHeliHeli.loadModel("../models/Helicopter/Mi_24_heli.obj");
 	modelHeliHeli.setShader(&shaderMulLighting);
+
+
 	// Lamborginhi
 	modelLambo.loadModel("../models/Lamborginhi_Aventador_OBJ/Lamborghini_Aventador_chasis.obj");
 	modelLambo.setShader(&shaderMulLighting);
@@ -314,6 +346,24 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 			std::cout << "Failed to load texture" << std::endl;
 		skyboxTexture.freeImage(bitmap);
 	}
+
+	//Definir las texturas de la caja de aterrizaje
+	Texture textureLandingPad("../Textures/landingPad.jpg");
+	bitmap = textureLandingPad.loadImage();
+	data = textureLandingPad.convertToData(bitmap, imageWidth, imageHeight);
+	glBindTexture(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S);
+	glBindTexture(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imageWidth, imageHeight, 0,
+			GL_BGRA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+	else {
+		std::cout << "Falló cargo de textura" << std::endl;
+	}
+
 
 	// Definiendo la textura a utilizar
 	Texture textureCesped("../Textures/cesped.jpg");
@@ -428,6 +478,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	// set texture filtering parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
 	// Verifica si se pudo abrir la textura
 	if (data) {
 		// Transferis los datos de la imagen a memoria
@@ -440,6 +491,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 		glGenerateMipmap(GL_TEXTURE_2D);
 	} else
 		std::cout << "Failed to load texture" << std::endl;
+
 	// Libera la memoria de la textura
 	textureHighway.freeImage(bitmap);
 }
@@ -460,7 +512,9 @@ void destroy() {
 	boxCesped.destroy();
 	boxWalls.destroy();
 	boxHighway.destroy();
+	
 	boxLandingPad.destroy();
+	esfera1.destroy();
 
 	// Custom objects Delete
 	modelAircraft.destroy();
@@ -487,6 +541,7 @@ void destroy() {
 	modelLamboRightDor.destroy();
 	modelRock.destroy();
 
+
 	// Textures Delete
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glDeleteTextures(1, &textureCespedID);
@@ -505,8 +560,7 @@ void reshapeCallback(GLFWwindow *Window, int widthRes, int heightRes) {
 	glViewport(0, 0, widthRes, heightRes);
 }
 
-void keyCallback(GLFWwindow *window, int key, int scancode, int action,
-		int mode) {
+void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mode) {
 	if (action == GLFW_PRESS) {
 		switch (key) {
 		case GLFW_KEY_ESCAPE:
@@ -652,28 +706,349 @@ bool processInput(bool continueApplication) {
 	return continueApplication;
 }
 
+void cargaLuz() {
+	/*******************************************
+	 * Propiedades Luz direccional
+	 *******************************************/
+	shaderMulLighting.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
+	shaderMulLighting.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.3, 0.3, 0.3)));
+	shaderMulLighting.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.7, 0.7, 0.7)));
+	shaderMulLighting.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.9, 0.9, 0.9)));
+	shaderMulLighting.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-1.0, 0.0, 0.0)));
+
+	/*******************************************
+	 * Propiedades SpotLights
+	 *******************************************/
+	shaderMulLighting.setInt("spotLightCount", 0);
+
+	/*******************************************
+	 * Propiedades PointLights
+	 *******************************************/
+	shaderMulLighting.setInt("pointLightCount", 0);
+}
+void cargaCielo() {
+	/*******************************************
+	 * Skybox
+	 *******************************************/
+	GLint oldCullFaceMode;
+	GLint oldDepthFuncMode;
+	// deshabilita el modo del recorte de caras ocultas para ver las esfera desde adentro
+	glGetIntegerv(GL_CULL_FACE_MODE, &oldCullFaceMode);
+	glGetIntegerv(GL_DEPTH_FUNC, &oldDepthFuncMode);
+	shaderSkybox.setFloat("skybox", 0);
+	glCullFace(GL_FRONT);
+	glDepthFunc(GL_LEQUAL);
+	glActiveTexture(GL_TEXTURE0);
+	skyboxSphere.render();
+	glCullFace(oldCullFaceMode);
+	glDepthFunc(oldDepthFuncMode);
+}
+void cargaEsfera() {
+	/*******************************************
+	 * Esfera (Práctica01)
+	 *******************************************/
+	glBindTexture(GL_TEXTURE_2D, textureWindowID);
+	glActiveTexture(GL_TEXTURE0);
+	esfera1.render();
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+void cargaCesped() {
+	/*******************************************
+	 * Cesped
+	 *******************************************/
+	glm::mat4 modelCesped = glm::mat4(1.0);
+	modelCesped = glm::translate(modelCesped, glm::vec3(0.0, 0.0, 0.0));
+	modelCesped = glm::scale(modelCesped, glm::vec3(200.0, 0.001, 200.0));
+	// Se activa la textura del agua
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, textureCespedID);
+	shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(200, 200)));
+	boxCesped.render(modelCesped);
+	shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(0, 0)));
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+void cargaLambo() {
+	// Lambo car
+	glDisable(GL_CULL_FACE);
+	glm::mat4 modelMatrixLamboChasis = glm::mat4(modelMatrixLambo);
+	modelMatrixLamboChasis = glm::scale(modelMatrixLamboChasis, glm::vec3(1.3, 1.3, 1.3));
+	modelLambo.render(modelMatrixLamboChasis);
+	glActiveTexture(GL_TEXTURE0);
+	glm::mat4 modelMatrixLamboLeftDor = glm::mat4(modelMatrixLamboChasis);
+	modelMatrixLamboLeftDor = glm::translate(modelMatrixLamboLeftDor, glm::vec3(1.08676, 0.707316, 0.982601));
+	modelMatrixLamboLeftDor = glm::rotate(modelMatrixLamboLeftDor, glm::radians(dorRotCount), glm::vec3(1.0, 0, 0));
+	modelMatrixLamboLeftDor = glm::translate(modelMatrixLamboLeftDor, glm::vec3(-1.08676, -0.707316, -0.982601));
+	modelLamboLeftDor.render(modelMatrixLamboLeftDor);
+	modelLamboRightDor.render(modelMatrixLamboChasis);
+	modelLamboFrontLeftWheel.render(modelMatrixLamboChasis);
+	modelLamboFrontRightWheel.render(modelMatrixLamboChasis);
+	modelLamboRearLeftWheel.render(modelMatrixLamboChasis);
+	modelLamboRearRightWheel.render(modelMatrixLamboChasis);
+	// Se regresa el cull faces IMPORTANTE para las puertas
+	glEnable(GL_CULL_FACE);
+}
+void cargaNave() {
+	// Render for the aircraft model
+	modelAircraft.render(modelMatrixAircraft);
+}
+void cargaCasaYCamino() {
+
+	/*******************************************
+	 * Casa
+	 *******************************************/
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, textureWallID);
+	// Frontal wall
+	boxWalls.setScale(glm::vec3(10.0, 5.0, 0.05));
+	boxWalls.setPosition(glm::vec3(-10.0, 2.5, 0.0));
+	boxWalls.setOrientation(glm::vec3(0.0, 0.0, 0.0));
+	boxWalls.render();
+	// Left wall
+	boxWalls.setScale(glm::vec3(10.0, 5.0, 0.05));
+	boxWalls.setPosition(glm::vec3(-15.0, 2.5, -5.0));
+	boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
+	boxWalls.render();
+	// Right walls
+	// First wall
+	boxWalls.setScale(glm::vec3(3.75, 5.0, 0.05));
+	boxWalls.setPosition(glm::vec3(-5.0, 2.5, -1.875));
+	boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
+	boxWalls.render();
+	// Second wall
+	boxWalls.setScale(glm::vec3(3.75, 5.0, 0.05));
+	boxWalls.setPosition(glm::vec3(-5.0, 2.5, -8.125));
+	boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
+	boxWalls.render();
+	// Third wall
+	boxWalls.setScale(glm::vec3(2.5, 1.25, 0.05));
+	boxWalls.setPosition(glm::vec3(-5.0, 4.375, -5.0));
+	boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
+	boxWalls.render();
+	// Four wall
+	boxWalls.setScale(glm::vec3(2.5, 1.25, 0.05));
+	boxWalls.setPosition(glm::vec3(-5.0, 0.625, -5.0));
+	boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
+	boxWalls.render();
+	// Back wall
+	boxWalls.setScale(glm::vec3(10.0, 5.0, 0.05));
+	boxWalls.setPosition(glm::vec3(-10.0, 2.5, -10.0));
+	boxWalls.setOrientation(glm::vec3(0.0, 0.0, 0.0));
+	boxWalls.render();
+	// Ceilling
+	boxWalls.setScale(glm::vec3(12.0, 12.0, 0.05));
+	boxWalls.setPosition(glm::vec3(-10.0, 5, -5.0));
+	boxWalls.setOrientation(glm::vec3(90.0, 0.0, 0.0));
+	boxWalls.render();
+	// Window
+	glBindTexture(GL_TEXTURE_2D, textureWindowID);
+	boxWalls.setScale(glm::vec3(2.5, 2.5, 0.05));
+	boxWalls.setPosition(glm::vec3(-5.0, 2.5, -5.0));
+	boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
+	boxWalls.render();
+	// Highway 0
+	glBindTexture(GL_TEXTURE_2D, textureHighwayID);
+	boxHighway.setScale(glm::vec3(40.0, 0.05, 10.0));
+	boxHighway.setPosition(glm::vec3(0.0, 0.05, 10.0));
+	boxHighway.setOrientation(glm::vec3(0.0, 0.0, 0.0));
+	boxHighway.render();
+	// Highway 1
+	boxHighway.setScale(glm::vec3(80.0, 0.05, 10.0));
+	boxHighway.setPosition(glm::vec3(25.0, 0.05, 0.0));
+	boxHighway.setOrientation(glm::vec3(0.0, 90.0, 0.0));
+	shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(2, 1)));
+	boxHighway.render();
+	shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(0, 0)));
+	// Highway 2
+	boxHighway.setScale(glm::vec3(80.0, 0.05, 10.0));
+	boxHighway.setPosition(glm::vec3(-25.0, 0.05, 0.0));
+	boxHighway.setOrientation(glm::vec3(0.0, 90.0, 0.0));
+	shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(2, 1)));
+	boxHighway.render();
+	shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(0, 0)));
+	// Highway 3
+	boxHighway.setScale(glm::vec3(40.0, 0.05, 10.0));
+	boxHighway.setPosition(glm::vec3(0.0, 0.05, -35.0));
+	boxHighway.setOrientation(glm::vec3(0.0, 0.0, 0.0));
+	boxHighway.render();
+}
+void cargaDarth() {
+	// Dart lego
+		// Se deshabilita el cull faces IMPORTANTE para la capa
+	glDisable(GL_CULL_FACE);
+	glm::mat4 modelMatrixDartBody = glm::mat4(modelMatrixDart);
+	modelMatrixDartBody = glm::scale(modelMatrixDartBody, glm::vec3(0.5, 0.5, 0.5));
+	modelDartLegoBody.render(modelMatrixDartBody);
+	glm::mat4 modelMatrixDartHead = glm::mat4(modelMatrixDartBody);
+	modelMatrixDartHead = glm::rotate(modelMatrixDartHead, rotDartHead, glm::vec3(0, 1, 0));
+	modelDartLegoHead.render(modelMatrixDartHead);
+	modelDartLegoMask.render(modelMatrixDartHead);
+	glm::mat4 modelMatrixDartLeftArm = glm::mat4(modelMatrixDartBody);
+	modelMatrixDartLeftArm = glm::translate(modelMatrixDartLeftArm, glm::vec3(-0.023515, 2.43607, 0.446066));
+	modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, glm::radians(-5.0f), glm::vec3(1, 0, 0));
+	modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, rotDartLeftArm, glm::vec3(0, 0, 1));
+	modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, glm::radians(5.0f), glm::vec3(1, 0, 0));
+	modelMatrixDartLeftArm = glm::translate(modelMatrixDartLeftArm, glm::vec3(0.023515, -2.43607, -0.446066));
+	modelDartLegoLeftArm.render(modelMatrixDartLeftArm);
+	glm::mat4 modelMatrixDartLeftHand = glm::mat4(modelMatrixDartLeftArm);
+	modelMatrixDartLeftHand = glm::translate(modelMatrixDartLeftHand, glm::vec3(0.201343, 1.68317, 0.99774));
+	modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, glm::radians(-5.0f), glm::vec3(1, 0, 0));
+	modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, rotDartLeftHand, glm::vec3(0, 1, 0));
+	modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, glm::radians(5.0f), glm::vec3(1, 0, 0));
+	modelMatrixDartLeftHand = glm::translate(modelMatrixDartLeftHand, glm::vec3(-0.201343, -1.68317, -0.99774));
+	modelDartLegoLeftHand.render(modelMatrixDartLeftHand);
+	glm::mat4 modelMatrixDartRightArm = glm::mat4(modelMatrixDartBody);
+	modelMatrixDartRightArm = glm::translate(modelMatrixDartRightArm, glm::vec3(-0.023515, 2.43607, -0.446066));
+	modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, glm::radians(5.0f), glm::vec3(1, 0, 0));
+	modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, rotDartRightArm, glm::vec3(0, 0, 1));
+	modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, glm::radians(-5.0f), glm::vec3(1, 0, 0));
+	modelMatrixDartRightArm = glm::translate(modelMatrixDartRightArm, glm::vec3(0.023515, -2.43607, 0.446066));
+	modelDartLegoRightArm.render(modelMatrixDartRightArm);
+	glm::mat4 modelMatrixDartRightHand = glm::mat4(modelMatrixDartRightArm);
+	modelMatrixDartRightHand = glm::translate(modelMatrixDartRightHand, glm::vec3(0.201343, 1.68317, -0.99774));
+	modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, glm::radians(5.0f), glm::vec3(1, 0, 0));
+	modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, rotDartRightHand, glm::vec3(0, 1, 0));
+	modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, glm::radians(-5.0f), glm::vec3(1, 0, 0));
+	modelMatrixDartRightHand = glm::translate(modelMatrixDartRightHand, glm::vec3(-0.201343, -1.68317, 0.99774));
+	modelDartLegoRightHand.render(modelMatrixDartRightHand);
+	glm::mat4 modelMatrixDartLeftLeg = glm::mat4(modelMatrixDartBody);
+	modelMatrixDartLeftLeg = glm::translate(modelMatrixDartLeftLeg, glm::vec3(0, 1.12632, 0.423349));
+	modelMatrixDartLeftLeg = glm::rotate(modelMatrixDartLeftLeg, rotDartLeftLeg, glm::vec3(0, 0, 1));
+	modelMatrixDartLeftLeg = glm::translate(modelMatrixDartLeftLeg, glm::vec3(0, -1.12632, -0.423349));
+	modelDartLegoLeftLeg.render(modelMatrixDartLeftLeg);
+	glm::mat4 modelMatrixDartRightLeg = glm::mat4(modelMatrixDartBody);
+	modelMatrixDartRightLeg = glm::translate(modelMatrixDartRightLeg, glm::vec3(0, 1.12632, -0.423349));
+	modelMatrixDartRightLeg = glm::rotate(modelMatrixDartRightLeg, rotDartRightLeg, glm::vec3(0, 0, 1));
+	modelMatrixDartRightLeg = glm::translate(modelMatrixDartRightLeg, glm::vec3(0, -1.12632, 0.423349));
+	modelDartLegoRightLeg.render(modelMatrixDartRightLeg);
+	// Se regresa el cull faces IMPORTANTE para la capa
+	glEnable(GL_CULL_FACE);
+}
+void cargaEclipse() {
+
+
+	glm::mat4 modelMatrixEclipseChasis = glm::mat4(modelMatrixEclipse);
+	modelMatrixEclipseChasis = glm::scale(modelMatrixEclipse, glm::vec3(0.5, 0.5, 0.5));
+	modelEclipseChasis.render(modelMatrixEclipseChasis);
+
+	glm::mat4 modelMatrixFrontalWheels = glm::mat4(modelMatrixEclipseChasis);
+	modelMatrixFrontalWheels = glm::translate(modelMatrixFrontalWheels, glm::vec3(0.0, 1.05813, 4.11483));
+	modelMatrixFrontalWheels = glm::rotate(modelMatrixFrontalWheels, rotWheelsY, glm::vec3(0, 1, 0));
+	modelMatrixFrontalWheels = glm::rotate(modelMatrixFrontalWheels, rotWheelsX, glm::vec3(1, 0, 0));
+	modelMatrixFrontalWheels = glm::translate(modelMatrixFrontalWheels, glm::vec3(0.0, -1.05813, -4.11483));
+	modelEclipseFrontalWheels.render(modelMatrixFrontalWheels);
+
+	glm::mat4 modelMatrixRearWheels = glm::mat4(modelMatrixEclipseChasis);
+	modelMatrixRearWheels = glm::translate(modelMatrixRearWheels, glm::vec3(0.0, 1.05813, -4.35157));
+	modelMatrixRearWheels = glm::rotate(modelMatrixRearWheels, rotWheelsX, glm::vec3(1, 0, 0));
+	modelMatrixRearWheels = glm::translate(modelMatrixRearWheels, glm::vec3(0.0, -1.05813, 4.35157));
+	modelEclipseRearWheels.render(modelMatrixRearWheels);
+
+	rotWheelsX += 0.15f;
+	if (rotWheelsX > 1.0f) {
+		rotWheelsX = 0.0f;
+	}
+
+	modelMatrixRearWheels = glm::rotate(modelMatrixRearWheels, rotWheelsX, glm::vec3(1, 0, 0));
+	modelMatrixFrontalWheels = glm::rotate(modelMatrixFrontalWheels, rotWheelsX, glm::vec3(1, 0, 0));
+
+	//Máquina de estados del eclipse
+	switch (state) {
+	case 0:
+		if (numberAdvance == 0)
+			maxAdvance = 65.0f;
+		else if (numberAdvance == 1) {
+			maxAdvance = 49.0f;
+		}
+		else if (numberAdvance == 2) {
+			maxAdvance = 44.5f;
+		}
+		else if (numberAdvance == 3) {
+			maxAdvance = 49.0f;
+		}
+		else if (numberAdvance == 4) {
+			maxAdvance = 44.5f;
+		}
+
+		state = 1;
+		break;
+
+	case 1:
+		modelMatrixEclipse = glm::translate(modelMatrixEclipse, glm::vec3(0.0f, 0.0f, 0.15f));
+		advanceCount += 0.15;
+		if (advanceCount > maxAdvance) {
+			advanceCount = 0;
+			numberAdvance += 1;
+			state = 2;
+		}
+
+		break;
+
+		//Cuando está girando
+	case 2:
+
+		modelMatrixEclipse = glm::translate(modelMatrixEclipse, glm::vec3(0.0f, 0.0f, 0.025f));
+		modelMatrixEclipse = glm::rotate(modelMatrixEclipse, glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+		modelMatrixFrontalWheels = glm::rotate(modelMatrixFrontalWheels, rotWheelsY, glm::vec3(0, 1, 0));
+		
+		if (rotWheelsY < 0.15f) {
+			rotWheelsY += 0.05f;
+		}
+
+		rotCount += 0.5f;
+		if (rotCount >= 90) {
+			rotCount = 0;
+			state = 0;
+
+			rotWheelsY = 0.0f;
+			modelMatrixFrontalWheels = glm::rotate(modelMatrixFrontalWheels, 0.0f, glm::vec3(0, 1, 0));
+			rotWheelsX = 0.0f;
+			modelMatrixFrontalWheels = glm::rotate(modelMatrixFrontalWheels, 0.0f, glm::vec3(1, 0, 0));
+
+			if (numberAdvance > 4) {
+				numberAdvance = 1;
+			}
+		}
+
+
+
+		break;
+	}
+
+}
+void cargaHelicoptero() {
+	// Helicopter
+	glm::mat4 modelMatrixHeliChasis = glm::mat4(modelMatrixHeli);
+	modelHeliChasis.render(modelMatrixHeliChasis);
+
+	//Hélice grande
+	glm::mat4 modelMatrixHeliHeli = glm::mat4(modelMatrixHeliChasis);
+	modelMatrixHeliHeli = glm::translate(modelMatrixHeliHeli, glm::vec3(0.0, 0.0, -0.249548));
+	modelMatrixHeliHeli = glm::rotate(modelMatrixHeliHeli, rotHelHelY, glm::vec3(0, 1, 0));
+	modelMatrixHeliHeli = glm::translate(modelMatrixHeliHeli, glm::vec3(0.0, 0.0, 0.249548));
+	modelHeliHeli.render(modelMatrixHeliHeli);
+
+}
+void cargaHelipuerto() {
+	glBindTexture(GL_TEXTURE_2D, textureLandingPadID);
+	glActiveTexture(GL_TEXTURE0);
+	boxLandingPad.setScale(glm::vec3(10.0f, 0.05f, 10.0f));
+	boxLandingPad.setPosition(glm::vec3(5.0f, 0.05f, -5.0f));
+	boxLandingPad.render();
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void applicationLoop() {
 	bool psi = true;
 
+	//Posiciones iniciales
+	matrixModelRock = glm::translate(matrixModelRock, glm::vec3(-3.0, 0.0, 2.0));
+	modelMatrixHeli = glm::translate(modelMatrixHeli, glm::vec3(5.0, 10.0, -5.0));
+	modelMatrixAircraft = glm::translate(modelMatrixAircraft, glm::vec3(10.0, 2.0, -17.5));
+	modelMatrixLambo = glm::translate(modelMatrixLambo, glm::vec3(23.0, 0.0, 0.0));
+	modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(3.0, 0.0, 20.0));
 	modelMatrixEclipse = glm::translate(modelMatrixEclipse, glm::vec3(27.5, 0, 30.0));
 	modelMatrixEclipse = glm::rotate(modelMatrixEclipse, glm::radians(180.0f), glm::vec3(0, 1, 0));
-	int state = 0;
-	float advanceCount = 0.0;
-	float rotCount = 0.0;
-	float rotWheelsX = 0.0;
-	float rotWheelsY = 0.0;
-	int numberAdvance = 0;
-	int maxAdvance = 0.0;
-
-	matrixModelRock = glm::translate(matrixModelRock, glm::vec3(-3.0, 0.0, 2.0));
-
-	modelMatrixHeli = glm::translate(modelMatrixHeli, glm::vec3(5.0, 10.0, -5.0));
-
-	modelMatrixAircraft = glm::translate(modelMatrixAircraft, glm::vec3(10.0, 2.0, -17.5));
-
-	modelMatrixLambo = glm::translate(modelMatrixLambo, glm::vec3(23.0, 0.0, 0.0));
-
-	modelMatrixDart = glm::translate(modelMatrixDart, glm::vec3(3.0, 0.0, 20.0));
 
 	// Variables to interpolation key frames
 	fileName = "../animaciones/animation_dart_joints.txt";
@@ -717,248 +1092,27 @@ void applicationLoop() {
 		shaderMulLighting.setMatrix4("view", 1, false,
 				glm::value_ptr(view));
 
-		/*******************************************
-		 * Propiedades Luz direccional
-		 *******************************************/
-		shaderMulLighting.setVectorFloat3("viewPos", glm::value_ptr(camera->getPosition()));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.ambient", glm::value_ptr(glm::vec3(0.3, 0.3, 0.3)));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.diffuse", glm::value_ptr(glm::vec3(0.7, 0.7, 0.7)));
-		shaderMulLighting.setVectorFloat3("directionalLight.light.specular", glm::value_ptr(glm::vec3(0.9, 0.9, 0.9)));
-		shaderMulLighting.setVectorFloat3("directionalLight.direction", glm::value_ptr(glm::vec3(-1.0, 0.0, 0.0)));
-
-		/*******************************************
-		 * Propiedades SpotLights
-		 *******************************************/
-		shaderMulLighting.setInt("spotLightCount", 0);
-
-		/*******************************************
-		 * Propiedades PointLights
-		 *******************************************/
-		shaderMulLighting.setInt("pointLightCount", 0);
-
-		/*******************************************
-		 * Cesped
-		 *******************************************/
-		glm::mat4 modelCesped = glm::mat4(1.0);
-		modelCesped = glm::translate(modelCesped, glm::vec3(0.0, 0.0, 0.0));
-		modelCesped = glm::scale(modelCesped, glm::vec3(200.0, 0.001, 200.0));
-		// Se activa la textura del agua
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, textureCespedID);
-		shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(200, 200)));
-		boxCesped.render(modelCesped);
-		shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(0, 0)));
-		glBindTexture(GL_TEXTURE_2D, 0);
-
-		/*******************************************
-		 * Casa
-		 *******************************************/
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, textureWallID);
-		// Frontal wall
-		boxWalls.setScale(glm::vec3(10.0, 5.0, 0.05));
-		boxWalls.setPosition(glm::vec3(-10.0, 2.5, 0.0));
-		boxWalls.setOrientation(glm::vec3(0.0, 0.0, 0.0));
-		boxWalls.render();
-		// Left wall
-		boxWalls.setScale(glm::vec3(10.0, 5.0, 0.05));
-		boxWalls.setPosition(glm::vec3(-15.0, 2.5, -5.0));
-		boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
-		boxWalls.render();
-		// Right walls
-		// First wall
-		boxWalls.setScale(glm::vec3(3.75, 5.0, 0.05));
-		boxWalls.setPosition(glm::vec3(-5.0, 2.5, -1.875));
-		boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
-		boxWalls.render();
-		// Second wall
-		boxWalls.setScale(glm::vec3(3.75, 5.0, 0.05));
-		boxWalls.setPosition(glm::vec3(-5.0, 2.5, -8.125));
-		boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
-		boxWalls.render();
-		// Third wall
-		boxWalls.setScale(glm::vec3(2.5, 1.25, 0.05));
-		boxWalls.setPosition(glm::vec3(-5.0, 4.375, -5.0));
-		boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
-		boxWalls.render();
-		// Four wall
-		boxWalls.setScale(glm::vec3(2.5, 1.25, 0.05));
-		boxWalls.setPosition(glm::vec3(-5.0, 0.625, -5.0));
-		boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
-		boxWalls.render();
-		// Back wall
-		boxWalls.setScale(glm::vec3(10.0, 5.0, 0.05));
-		boxWalls.setPosition(glm::vec3(-10.0, 2.5, -10.0));
-		boxWalls.setOrientation(glm::vec3(0.0, 0.0, 0.0));
-		boxWalls.render();
-		// Ceilling
-		boxWalls.setScale(glm::vec3(12.0, 12.0, 0.05));
-		boxWalls.setPosition(glm::vec3(-10.0, 5, -5.0));
-		boxWalls.setOrientation(glm::vec3(90.0, 0.0, 0.0));
-		boxWalls.render();
-		// Window
-		glBindTexture(GL_TEXTURE_2D, textureWindowID);
-		boxWalls.setScale(glm::vec3(2.5, 2.5, 0.05));
-		boxWalls.setPosition(glm::vec3(-5.0, 2.5, -5.0));
-		boxWalls.setOrientation(glm::vec3(0.0, 90.0, 0.0));
-		boxWalls.render();
-		// Highway 0
-		glBindTexture(GL_TEXTURE_2D, textureHighwayID);
-		boxHighway.setScale(glm::vec3(40.0, 0.05, 10.0));
-		boxHighway.setPosition(glm::vec3(0.0, 0.05, 10.0));
-		boxHighway.setOrientation(glm::vec3(0.0, 0.0, 0.0));
-		boxHighway.render();
-		// Highway 1
-		boxHighway.setScale(glm::vec3(80.0, 0.05, 10.0));
-		boxHighway.setPosition(glm::vec3(25.0, 0.05, 0.0));
-		boxHighway.setOrientation(glm::vec3(0.0, 90.0, 0.0));
-		shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(2, 1)));
-		boxHighway.render();
-		shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(0, 0)));
-		// Highway 2
-		boxHighway.setScale(glm::vec3(80.0, 0.05, 10.0));
-		boxHighway.setPosition(glm::vec3(-25.0, 0.05, 0.0));
-		boxHighway.setOrientation(glm::vec3(0.0, 90.0, 0.0));
-		shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(2, 1)));
-		boxHighway.render();
-		shaderMulLighting.setVectorFloat2("scaleUV", glm::value_ptr(glm::vec2(0, 0)));
-		// Highway 3
-		boxHighway.setScale(glm::vec3(40.0, 0.05, 10.0));
-		boxHighway.setPosition(glm::vec3(0.0, 0.05, -35.0));
-		boxHighway.setOrientation(glm::vec3(0.0, 0.0, 0.0));
-		boxHighway.render();
-
-		/*******************************************
-		 * Custom objects obj
-		 *******************************************/
-		//Rock render
-		modelRock.render(matrixModelRock);
-		// Forze to enable the unit texture to 0 always ----------------- IMPORTANT
-		glActiveTexture(GL_TEXTURE0);
-
-		// Render for the aircraft model
-		modelAircraft.render(modelMatrixAircraft);
-
-		// Render for the eclipse car
-		glm::mat4 modelMatrixEclipseChasis = glm::mat4(modelMatrixEclipse);
-		modelMatrixEclipseChasis = glm::scale(modelMatrixEclipse, glm::vec3(0.5, 0.5, 0.5));
-		modelEclipseChasis.render(modelMatrixEclipseChasis);
-
-		glm::mat4 modelMatrixFrontalWheels = glm::mat4(modelMatrixEclipseChasis);
-		modelMatrixFrontalWheels = glm::translate(modelMatrixFrontalWheels, glm::vec3(0.0, 1.05813, 4.11483 ));
-		modelMatrixFrontalWheels = glm::rotate(modelMatrixFrontalWheels, rotWheelsY, glm::vec3(0, 1, 0));
-		modelMatrixFrontalWheels = glm::rotate(modelMatrixFrontalWheels, rotWheelsX, glm::vec3(1, 0, 0));
-		modelMatrixFrontalWheels = glm::translate(modelMatrixFrontalWheels, glm::vec3(0.0, -1.05813, -4.11483));
-		modelEclipseFrontalWheels.render(modelMatrixFrontalWheels);
-
-		glm::mat4 modelMatrixRearWheels = glm::mat4(modelMatrixEclipseChasis);
-		modelMatrixRearWheels = glm::translate(modelMatrixRearWheels, glm::vec3(0.0, 1.05813, -4.35157 ));
-		modelMatrixRearWheels = glm::rotate(modelMatrixRearWheels, rotWheelsX, glm::vec3(1, 0, 0));
-		modelMatrixRearWheels = glm::translate(modelMatrixRearWheels, glm::vec3(0.0, -1.05813, 4.35157));
-		modelEclipseRearWheels.render(modelMatrixRearWheels);
-
-		// Helicopter
-		glm::mat4 modelMatrixHeliChasis = glm::mat4(modelMatrixHeli);
-		modelHeliChasis.render(modelMatrixHeliChasis);
-
-		glm::mat4 modelMatrixHeliHeli = glm::mat4(modelMatrixHeliChasis);
-		modelMatrixHeliHeli = glm::translate(modelMatrixHeliHeli, glm::vec3(0.0, 0.0, -0.249548));
-		modelMatrixHeliHeli = glm::rotate(modelMatrixHeliHeli, rotHelHelY, glm::vec3(0, 1, 0));
-		modelMatrixHeliHeli = glm::translate(modelMatrixHeliHeli, glm::vec3(0.0, 0.0, 0.249548));
-		modelHeliHeli.render(modelMatrixHeliHeli);
-
-		// Lambo car
-		glDisable(GL_CULL_FACE);
-		glm::mat4 modelMatrixLamboChasis = glm::mat4(modelMatrixLambo);
-		modelMatrixLamboChasis = glm::scale(modelMatrixLamboChasis, glm::vec3(1.3, 1.3, 1.3));
-		modelLambo.render(modelMatrixLamboChasis);
-		glActiveTexture(GL_TEXTURE0);
-		glm::mat4 modelMatrixLamboLeftDor = glm::mat4(modelMatrixLamboChasis);
-		modelMatrixLamboLeftDor = glm::translate(modelMatrixLamboLeftDor, glm::vec3(1.08676, 0.707316, 0.982601));
-		modelMatrixLamboLeftDor = glm::rotate(modelMatrixLamboLeftDor, glm::radians(dorRotCount), glm::vec3(1.0, 0, 0));
-		modelMatrixLamboLeftDor = glm::translate(modelMatrixLamboLeftDor, glm::vec3(-1.08676, -0.707316, -0.982601));
-		modelLamboLeftDor.render(modelMatrixLamboLeftDor);
-		modelLamboRightDor.render(modelMatrixLamboChasis);
-		modelLamboFrontLeftWheel.render(modelMatrixLamboChasis);
-		modelLamboFrontRightWheel.render(modelMatrixLamboChasis);
-		modelLamboRearLeftWheel.render(modelMatrixLamboChasis);
-		modelLamboRearRightWheel.render(modelMatrixLamboChasis);
-		// Se regresa el cull faces IMPORTANTE para las puertas
-		glEnable(GL_CULL_FACE);
-
-		// Dart lego
-		// Se deshabilita el cull faces IMPORTANTE para la capa
-		glDisable(GL_CULL_FACE);
-		glm::mat4 modelMatrixDartBody = glm::mat4(modelMatrixDart);
-		modelMatrixDartBody = glm::scale(modelMatrixDartBody, glm::vec3(0.5, 0.5, 0.5));
-		modelDartLegoBody.render(modelMatrixDartBody);
-		glm::mat4 modelMatrixDartHead = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartHead = glm::rotate(modelMatrixDartHead, rotDartHead, glm::vec3(0, 1, 0));
-		modelDartLegoHead.render(modelMatrixDartHead);
-		modelDartLegoMask.render(modelMatrixDartHead);
-		glm::mat4 modelMatrixDartLeftArm = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartLeftArm = glm::translate(modelMatrixDartLeftArm, glm::vec3(-0.023515, 2.43607, 0.446066));
-		modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, glm::radians(-5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, rotDartLeftArm, glm::vec3(0, 0, 1));
-		modelMatrixDartLeftArm = glm::rotate(modelMatrixDartLeftArm, glm::radians(5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartLeftArm = glm::translate(modelMatrixDartLeftArm, glm::vec3(0.023515, -2.43607, -0.446066));
-		modelDartLegoLeftArm.render(modelMatrixDartLeftArm);
-		glm::mat4 modelMatrixDartLeftHand = glm::mat4(modelMatrixDartLeftArm);
-		modelMatrixDartLeftHand = glm::translate(modelMatrixDartLeftHand, glm::vec3(0.201343, 1.68317, 0.99774));
-		modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, glm::radians(-5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, rotDartLeftHand, glm::vec3(0, 1, 0));
-		modelMatrixDartLeftHand = glm::rotate(modelMatrixDartLeftHand, glm::radians(5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartLeftHand = glm::translate(modelMatrixDartLeftHand, glm::vec3(-0.201343, -1.68317, -0.99774));
-		modelDartLegoLeftHand.render(modelMatrixDartLeftHand);
-		glm::mat4 modelMatrixDartRightArm = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartRightArm = glm::translate(modelMatrixDartRightArm, glm::vec3(-0.023515, 2.43607, -0.446066));
-		modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, glm::radians(5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, rotDartRightArm, glm::vec3(0, 0, 1));
-		modelMatrixDartRightArm = glm::rotate(modelMatrixDartRightArm, glm::radians(-5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartRightArm = glm::translate(modelMatrixDartRightArm, glm::vec3(0.023515, -2.43607, 0.446066));
-		modelDartLegoRightArm.render(modelMatrixDartRightArm);
-		glm::mat4 modelMatrixDartRightHand = glm::mat4(modelMatrixDartRightArm);
-		modelMatrixDartRightHand = glm::translate(modelMatrixDartRightHand, glm::vec3(0.201343, 1.68317, -0.99774));
-		modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, glm::radians(5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, rotDartRightHand, glm::vec3(0, 1, 0));
-		modelMatrixDartRightHand = glm::rotate(modelMatrixDartRightHand, glm::radians(-5.0f), glm::vec3(1, 0, 0));
-		modelMatrixDartRightHand = glm::translate(modelMatrixDartRightHand, glm::vec3(-0.201343, -1.68317, 0.99774));
-		modelDartLegoRightHand.render(modelMatrixDartRightHand);
-		glm::mat4 modelMatrixDartLeftLeg = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartLeftLeg = glm::translate(modelMatrixDartLeftLeg, glm::vec3(0, 1.12632, 0.423349));
-		modelMatrixDartLeftLeg = glm::rotate(modelMatrixDartLeftLeg, rotDartLeftLeg, glm::vec3(0, 0, 1));
-		modelMatrixDartLeftLeg = glm::translate(modelMatrixDartLeftLeg, glm::vec3(0, -1.12632, -0.423349));
-		modelDartLegoLeftLeg.render(modelMatrixDartLeftLeg);
-		glm::mat4 modelMatrixDartRightLeg = glm::mat4(modelMatrixDartBody);
-		modelMatrixDartRightLeg = glm::translate(modelMatrixDartRightLeg, glm::vec3(0, 1.12632, -0.423349));
-		modelMatrixDartRightLeg = glm::rotate(modelMatrixDartRightLeg, rotDartRightLeg, glm::vec3(0, 0, 1));
-		modelMatrixDartRightLeg = glm::translate(modelMatrixDartRightLeg, glm::vec3(0, -1.12632, 0.423349));
-		modelDartLegoRightLeg.render(modelMatrixDartRightLeg);
-		// Se regresa el cull faces IMPORTANTE para la capa
-		glEnable(GL_CULL_FACE);
-
-		/*******************************************
-		 * Skybox
-		 *******************************************/
-		GLint oldCullFaceMode;
-		GLint oldDepthFuncMode;
-		// deshabilita el modo del recorte de caras ocultas para ver las esfera desde adentro
-		glGetIntegerv(GL_CULL_FACE_MODE, &oldCullFaceMode);
-		glGetIntegerv(GL_DEPTH_FUNC, &oldDepthFuncMode);
-		shaderSkybox.setFloat("skybox", 0);
-		glCullFace(GL_FRONT);
-		glDepthFunc(GL_LEQUAL);
-		glActiveTexture(GL_TEXTURE0);
-		skyboxSphere.render();
-		glCullFace(oldCullFaceMode);
-		glDepthFunc(oldDepthFuncMode);
+		cargaEclipse();
+		cargaCasaYCamino();
+		cargaLuz();
+		cargaEsfera();
+		cargaCesped();
+		cargaLambo();
+		cargaHelicoptero();
+		cargaHelipuerto();
+		cargaNave();
+		cargaCielo();
+		cargaDarth();
 
 		// Constantes de animaciones
 		rotHelHelY += 0.5;
+		rotHelHelYTra += 0.3;
 
 		glfwSwapBuffers(window);
 	}
 }
+
+
 
 int main(int argc, char **argv) {
 	init(800, 700, "Window GLFW", false);
